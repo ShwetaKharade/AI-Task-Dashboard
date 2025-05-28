@@ -81,6 +81,28 @@ with col2:
                             autopct='%1.1f%%', colors=["green", "lightgrey"], startangle=90)
                     ax2.axis("equal")
                     st.pyplot(fig2)
+                # Additional Visuals
+                st.markdown("### 📈 Additional Insights")
+                extra_col1, extra_col2 = st.columns(2)
+
+# Bar chart: Urgency
+                with extra_col1:
+                    urgency_score = max(0, 10 - days_until_due)  # Inverted scale: lower days = higher urgency
+                    fig3, ax3 = plt.subplots()
+                    ax3.barh(["Urgency"], [urgency_score], color='orange')
+                    ax3.set_xlim(0, 10)
+                    ax3.set_xlabel("Urgency (0=Low, 10=High)")
+                    st.pyplot(fig3)
+
+# Duration vs Standard Day
+                with extra_col2:
+                    duration_hours = estimated_duration / 60
+                    fig4, ax4 = plt.subplots()
+                    ax4.bar(["Duration (hr)"], [duration_hours], color='purple')
+                    ax4.axhline(y=8, color='gray', linestyle='--', label="8-hr Work Day")
+                    ax4.set_ylim(0, 10)
+                    ax4.legend()
+                    st.pyplot(fig4)
 
                 # Summary Table
                 st.subheader("🧾 Task Summary")
