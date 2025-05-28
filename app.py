@@ -5,9 +5,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
 
-# Load models using joblib
-task_classifier = joblib.load("task_classifier.pkl")  # includes TF-IDF inside
-priority_model = joblib.load("priority_model.pkl")
+# Load models
+task_classifier = joblib.load("task_classifier.pkl")  # Includes TF-IDF pipeline
+priority_model = joblib.load("priority_model.pkl")    # XGBoost model
 
 # App title
 st.title("AI Task Classification and Prioritization")
@@ -37,27 +37,23 @@ if st.button("Classify and Prioritize"):
             # Clean and preprocess task description
             cleaned_description = task_description.strip().lower()
 
-            # Let the classifier pipeline handle vectorization
+            # Predict task category using pipeline
             task_category = task_classifier.predict([cleaned_description])[0]
 
-            # Create input features DataFrame
+            # Create input features for priority model (with correct names)
             input_features = pd.DataFrame([{
                 "user_workload": user_workload / 20,
-                "behavior_score": behavior_score,
+                "user_behavior_score": behavior_score,
                 "completion_status": completion_status,
-                "estimated_duration": estimated_duration,
-                "days_until_due": days_until_due,
-                "task_category": task_category
+                "estimated_duration_min": estimated_duration,
+                "days_until_due": days_until_due
             }])
 
-            # Encode categorical features
+            # Encode categorical completion_status
             le_status = LabelEncoder()
-            le_category = LabelEncoder()
-
             input_features["completion_status"] = le_status.fit_transform(input_features["completion_status"])
-            input_features["task_category"] = le_category.fit_transform(input_features["task_category"])
 
-            # Predict task priority
+            # Predict priority
             predicted_priority = priority_model.predict(input_features)[0]
             priority_map = {0: "Low", 1: "Medium", 2: "High"}
             priority_label = priority_map.get(predicted_priority, "Unknown")
