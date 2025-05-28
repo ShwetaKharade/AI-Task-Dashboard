@@ -4,8 +4,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Load models (TF-IDF is inside the classifier pipeline)
-task_classifier = joblib.load("task_classifier.pkl")
+# Load models using joblib
+task_classifier = joblib.load("task_classifier.pkl")  # must include TF-IDF inside
 priority_model = joblib.load("priority_model.pkl")
 
 # App title
@@ -36,7 +36,7 @@ if st.button("Classify and Prioritize"):
             # Clean and preprocess task description
             cleaned_description = task_description.strip().lower()
 
-            # Let the pipeline handle vectorization
+            # ✅ Correct: pass cleaned string directly to classifier
             task_category = task_classifier.predict([cleaned_description])[0]
 
             # Create feature set for priority prediction
