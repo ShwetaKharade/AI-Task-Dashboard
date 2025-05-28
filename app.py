@@ -35,18 +35,20 @@ days_until_due = st.number_input("Days Until Due", min_value=0, value=3)
 
 # On button click: make predictions
 if st.button("Classify and Prioritize"):
-    if task_description and isinstance(task_description, str):
-        # Clean and preprocess the input
-        cleaned_description = task_description.strip().lower()
-
+    if isinstance(task_description, str) and task_description.strip():
         try:
-            # Text feature
-            text_vector = tfidf.transform([cleaned_description])
+            # Sanitize and preprocess input
+            cleaned_description = str(task_description).strip().lower()
+
+            # TF-IDF transformation
+            text_vector = tfidf.transform([cleaned_description])  # must be a list of string
+
+            # Predict task category
             task_category = task_classifier.predict(text_vector)[0]
 
-            # Priority prediction
+            # Prepare input features
             input_features = pd.DataFrame([{
-                "user_workload": user_workload / 20,  # Scale to 0–1
+                "user_workload": user_workload / 20,  # scaled 0-1
                 "behavior_score": behavior_score,
                 "completion_status": completion_status,
                 "estimated_duration": estimated_duration,
@@ -59,14 +61,13 @@ if st.button("Classify and Prioritize"):
             priority_map = {0: "Low", 1: "Medium", 2: "High"}
             priority_label = priority_map.get(predicted_priority, "Unknown")
 
-            # Display results
-            st.success(f"**Predicted Task Category (from text):** {task_category}")
-            st.success(f"**Predicted Priority Level: {predicted_priority} ({priority_label})**")
+            # Display outputs
+            st.success(f"**Predicted Task Category:** {task_category}")
+            st.success(f"**Predicted Priority Level:** {predicted_priority} ({priority_label})")
 
-            # --- Optional Dashboard Visuals ---
+            # --- Dashboard Visuals ---
             st.subheader("Task Summary Dashboard")
 
-            # Pie chart for workload/behavior split
             fig1, ax1 = plt.subplots()
             ax1.pie([user_workload, 20 - user_workload], labels=["Current Workload", "Available Capacity"],
                     autopct='%1.1f%%', colors=["red", "lightgrey"], startangle=90)
@@ -79,7 +80,6 @@ if st.button("Classify and Prioritize"):
             ax2.axis("equal")
             st.pyplot(fig2)
 
-            # Table summary
             summary_df = pd.DataFrame({
                 "Metric": ["Task Category", "Priority Level", "User Workload", "Behavior Score", "Completion Status", "Duration (min)", "Days Until Due"],
                 "Value": [task_category, f"{predicted_priority} ({priority_label})", f"{user_workload}/20", f"{behavior_score}", completion_status, estimated_duration, days_until_due]
@@ -87,7 +87,7 @@ if st.button("Classify and Prioritize"):
             st.dataframe(summary_df)
 
         except Exception as e:
-            st.error("An error occurred during prediction. Please check your input or try again.")
+            st.error("An error occurred during classification or prioritization.")
             st.exception(e)
     else:
-        st.error("Please enter a valid task description.")
+        st.error("Please enter a valid task description (non-empty string).")
