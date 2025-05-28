@@ -54,7 +54,7 @@ with col2:
                 input_features["completion_status"] = le_status.transform(input_features["completion_status"])
 
                 predicted_priority = priority_model.predict(input_features)[0]
-                priority_map = {0: "Low", 1: "Medium", 2: "High"}
+                priority_map = {0: "High", 1: "Medium", 2: "Low"}
                 priority_label = priority_map.get(predicted_priority, "Unknown")
 
                 # Output section
