@@ -1,85 +1,75 @@
 import streamlit as st
-import pickle
-import numpy as np
+import joblib
 import pandas as pd
 import matplotlib.pyplot as plt
+from collections import Counter
 
-import joblib
-
-# Load models and vectorizer using joblib
+# Load models and vectorizer
 task_classifier = joblib.load("task_classifier.pkl")
 priority_model = joblib.load("priority_model.pkl")
 tfidf = joblib.load("tfidf.pkl")
 
+# App UI
+st.set_page_config(page_title="AI Task Management Dashboard", layout="wide")
+st.title("📊 AI-Powered Task Management System")
 
-# App title
-st.title("AI Task Classification and Prioritization")
+st.markdown("This app classifies tasks and predicts their priority using AI models.")
 
-# Task description input
-task_description = st.text_input("Enter Task Description", "Generate report for project")
+# Sidebar input
+st.sidebar.header("📝 Enter Task Details")
+task_description = st.sidebar.text_area("Task Description", height=150)
 
-# User Workload slider (scaled 0–20)
-user_workload = st.slider("User Workload (0-1)", 0.0, 20.0, 10.0)
+# Prediction output area
+if st.sidebar.button("Predict"):
+    if task_description.strip() == "":
+        st.warning("Please enter a task description.")
+    else:
+        # Predict task category
+        task_category = task_classifier.predict([task_description])[0]
 
-# Behavior score slider
-behavior_score = st.slider("Behavior Score (0-1)", 0.0, 1.0, 0.68)
+        # Vectorize input for priority model
+        X_vectorized = tfidf.transform([task_description])
+        predicted_priority = priority_model.predict(X_vectorized)[0]
 
-# Completion status
-completion_status = st.selectbox("Completion Status", ["Not Started", "In Progress", "Completed"])
+        st.subheader("✅ Prediction Results")
+        st.success(f"**Task Category:** {task_category}")
+        st.info(f"**Predicted Priority:** {predicted_priority}")
 
-# Estimated duration
-estimated_duration = st.number_input("Estimated Duration (minutes)", min_value=1, value=30)
+        # Store predictions in session state for analysis
+        if "predictions" not in st.session_state:
+            st.session_state["predictions"] = []
 
-# Days until due
-days_until_due = st.number_input("Days Until Due", min_value=0, value=3)
+        st.session_state["predictions"].append({
+            "Description": task_description,
+            "Category": task_category,
+            "Priority": predicted_priority
+        })
 
-# On button click: make predictions
-if st.button("Classify and Prioritize"):
-    # Text feature
-    text_vector = tfidf.transform([task_description])
-    task_category = task_classifier.predict(text_vector)[0]
+# Show dashboard visuals if predictions exist
+if "predictions" in st.session_state and len(st.session_state["predictions"]) > 0:
+    df = pd.DataFrame(st.session_state["predictions"])
 
-    # Priority prediction
-    input_features = pd.DataFrame([{
-        "user_workload": user_workload / 20,  # Scale to 0–1
-        "behavior_score": behavior_score,
-        "completion_status": completion_status,
-        "estimated_duration": estimated_duration,
-        "days_until_due": days_until_due,
-        "task_category": task_category
-    }])
+    st.markdown("---")
+    st.header("📈 Dashboard Summary")
 
-    # One-hot encode or encode category if necessary
-    # (Assuming the model pipeline handles preprocessing internally)
+    col1, col2 = st.columns(2)
 
-    predicted_priority = priority_model.predict(input_features)[0]
-    priority_map = {0: "Low", 1: "Medium", 2: "High"}
-    priority_label = priority_map.get(predicted_priority, "Unknown")
+    with col1:
+        st.subheader("Task Category Distribution")
+        cat_counts = df["Category"].value_counts()
+        fig1, ax1 = plt.subplots()
+        ax1.pie(cat_counts, labels=cat_counts.index, autopct="%1.1f%%", startangle=90)
+        ax1.axis("equal")
+        st.pyplot(fig1)
 
-    # Display results
-    st.success(f"**Predicted Task Category (from text):** {task_category}")
-    st.success(f"**Predicted Priority Level: {predicted_priority} ({priority_label})**")
+    with col2:
+        st.subheader("Priority Level Count")
+        fig2, ax2 = plt.subplots()
+        df["Priority"].value_counts().plot(kind="bar", ax=ax2, color="skyblue")
+        ax2.set_ylabel("Count")
+        ax2.set_xlabel("Priority")
+        st.pyplot(fig2)
 
-    # --- Optional Dashboard Visuals ---
-    st.subheader("Task Summary Dashboard")
-
-    # Pie chart for workload/behavior split
-    fig1, ax1 = plt.subplots()
-    ax1.pie([user_workload, 20 - user_workload], labels=["Current Workload", "Available Capacity"],
-            autopct='%1.1f%%', colors=["red", "lightgrey"], startangle=90)
-    ax1.axis("equal")
-    st.pyplot(fig1)
-
-    fig2, ax2 = plt.subplots()
-    ax2.pie([behavior_score, 1 - behavior_score], labels=["Behavior Score", "Remaining"],
-            autopct='%1.1f%%', colors=["green", "lightgrey"], startangle=90)
-    ax2.axis("equal")
-    st.pyplot(fig2)
-
-    # Table summary
-    summary_df = pd.DataFrame({
-        "Metric": ["Task Category", "Priority Level", "User Workload", "Behavior Score", "Completion Status", "Duration (min)", "Days Until Due"],
-        "Value": [task_category, f"{predicted_priority} ({priority_label})", f"{user_workload}/20", f"{behavior_score}", completion_status, estimated_duration, days_until_due]
-    })
-    st.dataframe(summary_df)
+    with st.expander("📋 View Prediction History"):
+        st.dataframe(df[::-1], use_container_width=True)
 
