@@ -3,9 +3,10 @@ import joblib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import LabelEncoder
 
 # Load models using joblib
-task_classifier = joblib.load("task_classifier.pkl")  # must include TF-IDF inside
+task_classifier = joblib.load("task_classifier.pkl")  # includes TF-IDF inside
 priority_model = joblib.load("priority_model.pkl")
 
 # App title
@@ -36,10 +37,10 @@ if st.button("Classify and Prioritize"):
             # Clean and preprocess task description
             cleaned_description = task_description.strip().lower()
 
-            # ✅ Correct: pass cleaned string directly to classifier
+            # Let the classifier pipeline handle vectorization
             task_category = task_classifier.predict([cleaned_description])[0]
 
-            # Create feature set for priority prediction
+            # Create input features DataFrame
             input_features = pd.DataFrame([{
                 "user_workload": user_workload / 20,
                 "behavior_score": behavior_score,
@@ -48,6 +49,13 @@ if st.button("Classify and Prioritize"):
                 "days_until_due": days_until_due,
                 "task_category": task_category
             }])
+
+            # Encode categorical features
+            le_status = LabelEncoder()
+            le_category = LabelEncoder()
+
+            input_features["completion_status"] = le_status.fit_transform(input_features["completion_status"])
+            input_features["task_category"] = le_category.fit_transform(input_features["task_category"])
 
             # Predict task priority
             predicted_priority = priority_model.predict(input_features)[0]
