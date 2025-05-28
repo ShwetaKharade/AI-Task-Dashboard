@@ -1,39 +1,93 @@
 import streamlit as st
-import joblib
+import pickle
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 
-# Load models
-task_classifier = joblib.load("task_classifier.pkl")
-priority_model = joblib.load("priority_model.pkl")
-tfidf_vectorizer = joblib.load("tfidf.pkl")
+# Load models and vectorizer
+with open("task_classifier.pkl", "rb") as f:
+    task_classifier = pickle.load(f)
+with open("priority_model.pkl", "rb") as f:
+    priority_model = pickle.load(f)
+with open("tfidf.pkl", "rb") as f:
+    tfidf = pickle.load(f)
 
-st.title("🧠 AI Task Classification and Prioritization")
+# App title
+st.title("AI Task Classification and Prioritization")
 
-task_desc = st.text_input("Enter Task Description", "Generate report for project")
+# Task description input
+task_description = st.text_input("Enter Task Description", "Generate report for project")
+
+# User Workload slider (scaled 0–20)
 user_workload = st.slider("User Workload (0-20)", 0.0, 20.0, 10.0)
-behavior_score = st.slider("Behavior Score (0-1)", 0.0, 1.0, 0.5)
+
+# Behavior score slider
+behavior_score = st.slider("Behavior Score (0-1)", 0.0, 1.0, 0.68)
+
+# Completion status
 completion_status = st.selectbox("Completion Status", ["Not Started", "In Progress", "Completed"])
-duration = st.number_input("Estimated Duration (minutes)", min_value=1, value=30)
+
+# Estimated duration
+estimated_duration = st.number_input("Estimated Duration (minutes)", min_value=1, value=30)
+
+# Days until due
 days_until_due = st.number_input("Days Until Due", min_value=0, value=3)
 
+# On button click: make predictions
 if st.button("Classify and Prioritize"):
-    # 1. Predict category
-    text_vector = tfidf_vectorizer.transform([task_desc])
-    task_category = task_classifier.predict(text_vector)[0]
+    if task_description and isinstance(task_description, str):
+        # Clean and preprocess the input
+        cleaned_description = task_description.strip().lower()
 
-    # 2. Prepare additional features for priority model
-    # Convert completion_status to numeric value
-    status_map = {"Not Started": 0, "In Progress": 1, "Completed": 2}
-    completion_status_num = status_map[completion_status]
+        try:
+            # Text feature
+            text_vector = tfidf.transform([cleaned_description])
+            task_category = task_classifier.predict(text_vector)[0]
 
-    # Concatenate with tfidf features
-    # Convert sparse matrix to dense
-    X_text = text_vector.toarray()
-    X_meta = np.array([[user_workload, behavior_score, completion_status_num, duration, days_until_due]])
-    X_combined = np.hstack([X_text, X_meta])
+            # Priority prediction
+            input_features = pd.DataFrame([{
+                "user_workload": user_workload / 20,  # Scale to 0–1
+                "behavior_score": behavior_score,
+                "completion_status": completion_status,
+                "estimated_duration": estimated_duration,
+                "days_until_due": days_until_due,
+                "task_category": task_category
+            }])
 
-    # 3. Predict priority
-    predicted_priority = priority_model.predict(X_combined)[0]
+            # Predict priority
+            predicted_priority = priority_model.predict(input_features)[0]
+            priority_map = {0: "Low", 1: "Medium", 2: "High"}
+            priority_label = priority_map.get(predicted_priority, "Unknown")
 
-    st.success(f"🗂️ Predicted Task Category: **{task_category}**")
-    st.success(f"⚡ Predicted Priority Level: **{predicted_priority}**")
+            # Display results
+            st.success(f"**Predicted Task Category (from text):** {task_category}")
+            st.success(f"**Predicted Priority Level: {predicted_priority} ({priority_label})**")
+
+            # --- Optional Dashboard Visuals ---
+            st.subheader("Task Summary Dashboard")
+
+            # Pie chart for workload/behavior split
+            fig1, ax1 = plt.subplots()
+            ax1.pie([user_workload, 20 - user_workload], labels=["Current Workload", "Available Capacity"],
+                    autopct='%1.1f%%', colors=["red", "lightgrey"], startangle=90)
+            ax1.axis("equal")
+            st.pyplot(fig1)
+
+            fig2, ax2 = plt.subplots()
+            ax2.pie([behavior_score, 1 - behavior_score], labels=["Behavior Score", "Remaining"],
+                    autopct='%1.1f%%', colors=["green", "lightgrey"], startangle=90)
+            ax2.axis("equal")
+            st.pyplot(fig2)
+
+            # Table summary
+            summary_df = pd.DataFrame({
+                "Metric": ["Task Category", "Priority Level", "User Workload", "Behavior Score", "Completion Status", "Duration (min)", "Days Until Due"],
+                "Value": [task_category, f"{predicted_priority} ({priority_label})", f"{user_workload}/20", f"{behavior_score}", completion_status, estimated_duration, days_until_due]
+            })
+            st.dataframe(summary_df)
+
+        except Exception as e:
+            st.error("An error occurred during prediction. Please check your input or try again.")
+            st.exception(e)
+    else:
+        st.error("Please enter a valid task description.")
