@@ -1,10 +1,10 @@
 import streamlit as st
-import pickle
+import joblib
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import joblib
-# Load models and vectorizer
+
+# Load models and vectorizer using joblib
 task_classifier = joblib.load("task_classifier.pkl")
 priority_model = joblib.load("priority_model.pkl")
 tfidf_vectorizer = joblib.load("tfidf.pkl")
@@ -34,18 +34,16 @@ days_until_due = st.number_input("Days Until Due", min_value=0, value=3)
 if st.button("Classify and Prioritize"):
     if isinstance(task_description, str) and task_description.strip():
         try:
-            # Sanitize and preprocess input
-            cleaned_description = str(task_description).strip().lower()
+            # Clean and preprocess task description
+            cleaned_description = task_description.strip().lower()
 
-            # TF-IDF transformation
-            text_vector = tfidf.transform([cleaned_description])  # must be a list of string
-
-            # Predict task category
+            # Vectorize and classify the task description
+            text_vector = tfidf_vectorizer.transform([cleaned_description])
             task_category = task_classifier.predict(text_vector)[0]
 
-            # Prepare input features
+            # Create feature set for priority prediction
             input_features = pd.DataFrame([{
-                "user_workload": user_workload / 20,  # scaled 0-1
+                "user_workload": user_workload / 20,
                 "behavior_score": behavior_score,
                 "completion_status": completion_status,
                 "estimated_duration": estimated_duration,
@@ -53,38 +51,51 @@ if st.button("Classify and Prioritize"):
                 "task_category": task_category
             }])
 
-            # Predict priority
+            # Predict task priority
             predicted_priority = priority_model.predict(input_features)[0]
             priority_map = {0: "Low", 1: "Medium", 2: "High"}
             priority_label = priority_map.get(predicted_priority, "Unknown")
 
-            # Display outputs
+            # Display results
             st.success(f"**Predicted Task Category:** {task_category}")
-            st.success(f"**Predicted Priority Level:** {predicted_priority} ({priority_label})")
+            st.success(f"**Predicted Priority Level:** {predicted_priority} ({priority_label})**")
 
             # --- Dashboard Visuals ---
             st.subheader("Task Summary Dashboard")
 
+            # Pie chart for workload
             fig1, ax1 = plt.subplots()
-            ax1.pie([user_workload, 20 - user_workload], labels=["Current Workload", "Available Capacity"],
+            ax1.pie([user_workload, 20 - user_workload],
+                    labels=["Current Workload", "Available Capacity"],
                     autopct='%1.1f%%', colors=["red", "lightgrey"], startangle=90)
             ax1.axis("equal")
             st.pyplot(fig1)
 
+            # Pie chart for behavior score
             fig2, ax2 = plt.subplots()
-            ax2.pie([behavior_score, 1 - behavior_score], labels=["Behavior Score", "Remaining"],
+            ax2.pie([behavior_score, 1 - behavior_score],
+                    labels=["Behavior Score", "Remaining"],
                     autopct='%1.1f%%', colors=["green", "lightgrey"], startangle=90)
             ax2.axis("equal")
             st.pyplot(fig2)
 
+            # Table summary
             summary_df = pd.DataFrame({
-                "Metric": ["Task Category", "Priority Level", "User Workload", "Behavior Score", "Completion Status", "Duration (min)", "Days Until Due"],
-                "Value": [task_category, f"{predicted_priority} ({priority_label})", f"{user_workload}/20", f"{behavior_score}", completion_status, estimated_duration, days_until_due]
+                "Metric": [
+                    "Task Category", "Priority Level", "User Workload",
+                    "Behavior Score", "Completion Status",
+                    "Duration (min)", "Days Until Due"
+                ],
+                "Value": [
+                    task_category, f"{predicted_priority} ({priority_label})", f"{user_workload}/20",
+                    f"{behavior_score}", completion_status,
+                    estimated_duration, days_until_due
+                ]
             })
             st.dataframe(summary_df)
 
         except Exception as e:
-            st.error("An error occurred during classification or prioritization.")
+            st.error("❌ An error occurred during prediction. Please check the logs or input data.")
             st.exception(e)
     else:
-        st.error("Please enter a valid task description (non-empty string).")
+        st.error("⚠️ Please enter a valid task description (non-empty string).")
