@@ -4,13 +4,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# Load models and vectorizer
-with open("task_classifier.pkl", "rb") as f:
-    task_classifier = pickle.load(f)
-with open("priority_model.pkl", "rb") as f:
-    priority_model = pickle.load(f)
-with open("tfidf.pkl", "rb") as f:
-    tfidf = pickle.load(f)
+import joblib
+
+# Load models and vectorizer using joblib
+task_classifier = joblib.load("task_classifier.pkl")
+priority_model = joblib.load("priority_model.pkl")
+tfidf = joblib.load("tfidf.pkl")
+
 
 # App title
 st.title("AI Task Classification and Prioritization")
